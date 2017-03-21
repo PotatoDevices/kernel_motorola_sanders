@@ -488,7 +488,7 @@ static void configure_bark_dump(struct msm_watchdog_data *wdog_dd)
 			 * without saving registers.
 			 */
 		}
-	} else {
+	} else if (IS_ENABLED(CONFIG_MSM_MEMORY_DUMP_V2)) {
 		phys_addr_t cpu_buf_phys;
 		size_t buf_size_percpu;
 
