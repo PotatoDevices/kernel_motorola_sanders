@@ -4879,7 +4879,7 @@ static int bfq_init_queue(struct request_queue *q, struct elevator_type *e)
 	bfqd->bfq_fifo_expire[1] = bfq_fifo_expire[1];
 	bfqd->bfq_back_max = bfq_back_max;
 	bfqd->bfq_back_penalty = bfq_back_penalty;
-	bfqd->bfq_slice_idle = bfq_slice_idle;
+	bfqd->bfq_slice_idle = blk_queue_nonrot(q) ? 0 : bfq_slice_idle;
 	bfqd->bfq_timeout = bfq_timeout;
 
 	bfqd->bfq_requests_within_timer = 120;
