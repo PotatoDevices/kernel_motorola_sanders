@@ -20,3 +20,7 @@ obj-y += bmi160/
 obj-y += inv_mpu/
 obj-y += inv_mpu9250/
 obj-y += st_asm330lhh/
+obj-y += st_imu68/
+obj-y += st_lsm6ds3/
+obj-y += st_lsm6ds3h/
+obj-y += st_lsm6dsm/
