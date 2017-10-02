@@ -68,6 +68,11 @@
 #define SWEEP_UP		0x04
 #define SWEEP_DOWN		0x08
 
+#define KEY_GESTURE_SWIPE_RIGHT       622
+#define KEY_GESTURE_SWIPE_LEFT        623
+#define KEY_GESTURE_SWIPE_DOWN        624
+#define KEY_GESTURE_SWIPE_UP          625
+
 #define WAKE_GESTURES_ENABLED	1
 
 #define LOGTAG			"WG"
@@ -656,6 +661,10 @@ static int __init wake_gestures_init(void)
 	}
 
 	input_set_capability(wake_dev, EV_KEY, KEY_POWER);
+	input_set_capability(wake_dev, EV_KEY, KEY_GESTURE_SWIPE_RIGHT);
+	input_set_capability(wake_dev, EV_KEY, KEY_GESTURE_SWIPE_LEFT);
+	input_set_capability(wake_dev, EV_KEY, KEY_GESTURE_SWIPE_DOWN);
+	input_set_capability(wake_dev, EV_KEY, KEY_GESTURE_SWIPE_UP);
 	wake_dev->name = "wg_pwrkey";
 	wake_dev->phys = "wg_pwrkey/input0";
 
