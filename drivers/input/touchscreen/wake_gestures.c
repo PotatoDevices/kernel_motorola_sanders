@@ -67,7 +67,6 @@
 #define SWEEP_LEFT		0x02
 #define SWEEP_UP		0x04
 #define SWEEP_DOWN		0x08
-#define VIB_STRENGTH 		30
 
 #define WAKE_GESTURES_ENABLED	1
 
@@ -80,7 +79,11 @@ static struct input_dev *gesture_dev;
 
 /* Resources */
 int s2w_switch = S2W_DEFAULT;
+int s2w_switch_temp; 
+bool s2w_switch_changed = false;
 int dt2w_switch = DT2W_DEFAULT;
+int dt2w_switch_temp; 
+bool dt2w_switch_changed = false;
 static int s2s_switch = S2S_DEFAULT;
 static int touch_x = 0, touch_y = 0;
 static bool touch_x_called = false, touch_y_called = false;
@@ -94,7 +97,6 @@ static unsigned long pwrtrigger_time[2] = {0, 0};
 static unsigned long long tap_time_pre = 0;
 static int touch_nr = 0, x_pre = 0, y_pre = 0;
 static bool touch_cnt = true;
-static int vib_strength = VIB_STRENGTH;
 
 static struct input_dev * wake_dev;
 static DEFINE_MUTEX(pwrkeyworklock);
@@ -135,8 +137,6 @@ static void wake_presspwr(struct work_struct * wake_presspwr_work) {
 	input_event(wake_dev, EV_SYN, 0, 0);
 	msleep(WG_PWRKEY_DUR);
 	mutex_unlock(&pwrkeyworklock);
-
-	set_vibrate(vib_strength);
 
 	return;
 }
@@ -553,9 +553,14 @@ static ssize_t sweep2wake_show(struct device *dev,
 static ssize_t sweep2wake_dump(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
-	sscanf(buf, "%d ", &s2w_switch);
-	if (s2w_switch < 0 || s2w_switch > 15)
-		s2w_switch = 0;
+	sscanf(buf, "%d ", &s2w_switch_temp);
+	if (s2w_switch_temp < 0 || s2w_switch_temp > 15)
+		s2w_switch_temp = 0;
+		
+	if (!is_suspended())
+		s2w_switch = s2w_switch_temp;
+	else
+		s2w_switch_changed = true;
 
 	return count;
 }
@@ -597,9 +602,14 @@ static ssize_t doubletap2wake_show(struct device *dev,
 static ssize_t doubletap2wake_dump(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
-	sscanf(buf, "%d ", &dt2w_switch);
-	if (dt2w_switch < 0 || dt2w_switch > 1)
-		dt2w_switch = 0;
+	sscanf(buf, "%d ", &dt2w_switch_temp);
+	if (dt2w_switch_temp < 0 || dt2w_switch_temp > 1)
+		dt2w_switch_temp = 0;
+		
+	if (!is_suspended())
+		dt2w_switch = dt2w_switch_temp;
+	else
+		dt2w_switch_changed = true;
 		
 	return count;
 }
@@ -627,28 +637,6 @@ static ssize_t wake_gestures_dump(struct device *dev,
 static DEVICE_ATTR(wake_gestures, (S_IWUSR|S_IRUGO),
 	wake_gestures_show, wake_gestures_dump);
 #endif	
-
-static ssize_t vib_strength_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	size_t count = 0;
-	count += sprintf(buf, "%d\n", vib_strength);
-	return count;
-}
-
-static ssize_t vib_strength_dump(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
-{
-	sscanf(buf, "%d ",&vib_strength);
-	if (vib_strength < 0 || vib_strength > 90)
-		vib_strength = 20;
-
-	return count;
-}
-
-static DEVICE_ATTR(vib_strength, (S_IWUSR|S_IRUGO),
-	vib_strength_show, vib_strength_dump);
-
 
 /*
  * INIT / EXIT stuff below here
@@ -729,10 +717,6 @@ static int __init wake_gestures_init(void)
 	if (rc) {
 		pr_warn("%s: sysfs_create_file failed for doubletap2wake\n", __func__);
 	}
-	rc = sysfs_create_file(android_touch_kobj, &dev_attr_vib_strength.attr);
-	if (rc) {
-		pr_warn("%s: sysfs_create_file failed for vib_strength\n", __func__);
-	}
 #if (WAKE_GESTURES_ENABLED)
 	rc = sysfs_create_file(android_touch_kobj, &dev_attr_wake_gestures.attr);
 	if (rc) {
@@ -769,4 +753,3 @@ static void __exit wake_gestures_exit(void)
 
 module_init(wake_gestures_init);
 module_exit(wake_gestures_exit);
-
