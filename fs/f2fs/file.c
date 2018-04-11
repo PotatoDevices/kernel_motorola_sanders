@@ -32,19 +32,6 @@
 #include "trace.h"
 #include <trace/events/f2fs.h>
 
-static int f2fs_filemap_fault(struct vm_area_struct *vma,
-					struct vm_fault *vmf)
-{
-	struct inode *inode = file_inode(vma->vm_file);
-	int err;
-
-	down_read(&F2FS_I(inode)->i_mmap_sem);
-	err = filemap_fault(vma, vmf);
-	up_read(&F2FS_I(inode)->i_mmap_sem);
-
-	return err;
-}
-
 static int f2fs_vm_page_mkwrite(struct vm_area_struct *vma,
 						struct vm_fault *vmf)
 {
@@ -72,14 +59,13 @@ static int f2fs_vm_page_mkwrite(struct vm_area_struct *vma,
 	f2fs_unlock_op(sbi);
 
 	file_update_time(vma->vm_file);
-	down_read(&F2FS_I(inode)->i_mmap_sem);
 	lock_page(page);
 	if (unlikely(page->mapping != inode->i_mapping ||
 			page_offset(page) > i_size_read(inode) ||
 			!PageUptodate(page))) {
 		unlock_page(page);
 		err = -EFAULT;
-		goto out_sem;
+		goto out;
 	}
 
 	/*
@@ -104,15 +90,13 @@ mapped:
 	f2fs_wait_on_page_writeback(page, DATA);
 	/* if gced page is attached, don't write to cold segment */
 	clear_cold_data(page);
-out_sem:
-	up_read(&F2FS_I(inode)->i_mmap_sem);
 out:
 	sb_end_pagefault(inode->i_sb);
 	return block_page_mkwrite_return(err);
 }
 
 static const struct vm_operations_struct f2fs_file_vm_ops = {
-	.fault		= f2fs_filemap_fault,
+	.fault		= filemap_fault,
 	.map_pages	= filemap_map_pages,
 	.page_mkwrite	= f2fs_vm_page_mkwrite,
 };
@@ -687,10 +671,8 @@ int f2fs_setattr(struct dentry *dentry, struct iattr *attr)
 			return -EACCES;
 
 		if (attr->ia_size <= i_size_read(inode)) {
-			down_write(&F2FS_I(inode)->i_mmap_sem);
 			truncate_setsize(inode, attr->ia_size);
 			err = f2fs_truncate(inode, true);
-			up_write(&F2FS_I(inode)->i_mmap_sem);
 			if (err)
 				return err;
 			f2fs_balance_fs(F2FS_I_SB(inode));
@@ -699,9 +681,7 @@ int f2fs_setattr(struct dentry *dentry, struct iattr *attr)
 			 * do not trim all blocks after i_size if target size is
 			 * larger than i_size.
 			 */
-			down_write(&F2FS_I(inode)->i_mmap_sem);
 			truncate_setsize(inode, attr->ia_size);
-			up_write(&F2FS_I(inode)->i_mmap_sem);
 		}
 	}
 
@@ -834,14 +814,12 @@ static int punch_hole(struct inode *inode, loff_t offset, loff_t len)
 
 			blk_start = (loff_t)pg_start << PAGE_CACHE_SHIFT;
 			blk_end = (loff_t)pg_end << PAGE_CACHE_SHIFT;
-			down_write(&F2FS_I(inode)->i_mmap_sem);
 			truncate_inode_pages_range(mapping, blk_start,
 					blk_end - 1);
 
 			f2fs_lock_op(sbi);
 			ret = truncate_hole(inode, pg_start, pg_end);
 			f2fs_unlock_op(sbi);
-			up_write(&F2FS_I(inode)->i_mmap_sem);
 		}
 	}
 
@@ -954,24 +932,24 @@ static int f2fs_collapse_range(struct inode *inode, loff_t offset, loff_t len)
 
 	pg_start = offset >> PAGE_CACHE_SHIFT;
 	pg_end = (offset + len) >> PAGE_CACHE_SHIFT;
-	down_write(&F2FS_I(inode)->i_mmap_sem);
+
 	/* write out all dirty pages from offset */
 	ret = filemap_write_and_wait_range(inode->i_mapping, offset, LLONG_MAX);
 	if (ret)
-		goto out;
+		return ret;
+
 	truncate_pagecache(inode, offset);
 
 	ret = f2fs_do_collapse(inode, pg_start, pg_end);
 	if (ret)
-		goto out;
+		return ret;
 
 	new_size = i_size_read(inode) - len;
 
 	ret = truncate_blocks(inode, new_size, true);
 	if (!ret)
 		i_size_write(inode, new_size);
-out:
-	up_write(&F2FS_I(inode)->i_mmap_sem);
+
 	return ret;
 }
 
@@ -997,10 +975,9 @@ static int f2fs_zero_range(struct inode *inode, loff_t offset, loff_t len,
 			return ret;
 	}
 
-	down_write(&F2FS_I(inode)->i_mmap_sem);
 	ret = filemap_write_and_wait_range(mapping, offset, offset + len - 1);
 	if (ret)
-		goto out_sem;
+		return ret;
 
 	truncate_pagecache_range(inode, offset, offset + len - 1);
 
@@ -1014,7 +991,7 @@ static int f2fs_zero_range(struct inode *inode, loff_t offset, loff_t len,
 		ret = fill_zero(inode, pg_start, off_start,
 						off_end - off_start);
 		if (ret)
-			goto out_sem;
+			return ret;
 
 		if (offset + len > new_size)
 			new_size = offset + len;
@@ -1024,7 +1001,7 @@ static int f2fs_zero_range(struct inode *inode, loff_t offset, loff_t len,
 			ret = fill_zero(inode, pg_start++, off_start,
 						PAGE_CACHE_SIZE - off_start);
 			if (ret)
-				goto out_sem;
+				return ret;
 
 			new_size = max_t(loff_t, new_size,
 					(loff_t)pg_start << PAGE_CACHE_SHIFT);
@@ -1081,8 +1058,6 @@ out:
 		mark_inode_dirty(inode);
 		update_inode_page(inode);
 	}
-out_sem:
-	up_write(&F2FS_I(inode)->i_mmap_sem);
 
 	return ret;
 }
@@ -1113,15 +1088,14 @@ static int f2fs_insert_range(struct inode *inode, loff_t offset, loff_t len)
 			return ret;
 	}
 
-	down_write(&F2FS_I(inode)->i_mmap_sem);
 	ret = truncate_blocks(inode, i_size_read(inode), true);
 	if (ret)
-		goto out_sem;
+		return ret;
 
 	/* write out all dirty pages from offset */
 	ret = filemap_write_and_wait_range(inode->i_mapping, offset, LLONG_MAX);
 	if (ret)
-		goto out_sem;
+		return ret;
 
 	truncate_pagecache(inode, offset);
 
@@ -1179,12 +1153,9 @@ next:
 	}
 
 	i_size_write(inode, new_size);
-	up_write(&F2FS_I(inode)->i_mmap_sem);
 	return 0;
 out:
 	f2fs_unlock_op(sbi);
-out_sem:
-	up_write(&F2FS_I(inode)->i_mmap_sem);
 	return ret;
 }
 
