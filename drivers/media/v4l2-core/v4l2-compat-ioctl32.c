@@ -317,7 +317,7 @@ static int __put_v4l2_format32(struct v4l2_format __user *kp, struct v4l2_format
 static int put_v4l2_format32(struct v4l2_format __user *kp, struct v4l2_format32 __user *up)
 {
 	if (!access_ok(VERIFY_WRITE, up, sizeof(struct v4l2_format32)) ||
-		convert_in_user(&kp->type, &up->type))
+		convert_in_user(kp->type, &up->type))
 		return -EFAULT;
 	return __put_v4l2_format32(kp, up);
 }
