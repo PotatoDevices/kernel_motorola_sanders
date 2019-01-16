@@ -95,24 +95,6 @@ struct eeprom_write_t32 {
 	uint32_t num_bytes;
 };
 
-#if defined(MULTI_CAMERA_DEEN) || defined(VENDOR_CAMERA_DEEN)
-struct bst_eeprom_read_t32 {
-uint32_t offset_addr;
-compat_uptr_t dbuffer;
-uint32_t num_bytes;
-};
-struct bst_eeprom_write_t32 {
-uint32_t offset_addr;
-compat_uptr_t dbuffer;
-uint32_t num_bytes;
-};
-struct eeprom_get_cmm_t32 {
-	uint32_t cmm_support;
-	uint32_t cmm_compression;
-	uint32_t cmm_size;
-};
-#endif
-
 struct msm_eeprom_info_t32 {
 	compat_uptr_t power_setting_array;
 	enum i2c_freq_mode_t i2c_freq_mode;
@@ -128,11 +110,6 @@ struct msm_eeprom_cfg_data32 {
 		struct eeprom_read_t32 read_data;
 		struct eeprom_write_t32 write_data;
 		struct msm_eeprom_info_t32 eeprom_info;
-#if defined(MULTI_CAMERA_DEEN) || defined(VENDOR_CAMERA_DEEN)
-		struct eeprom_get_cmm_t32 get_cmm_data;
-		struct bst_eeprom_read_t32 bst_read_data;
-		struct bst_eeprom_write_t32 bst_write_data;
-#endif
 	} cfg;
 };
 
