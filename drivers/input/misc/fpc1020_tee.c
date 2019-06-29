@@ -142,6 +142,8 @@ struct fpc1020_data {
 
 	struct input_dev *input;
 
+	struct mutex lock;
+
 	int irq_gpio;
 	int rst_gpio;
 	int irq_num;
@@ -149,7 +151,11 @@ struct fpc1020_data {
 	int clocks_enabled;
 	int clocks_suspended;
 	int key_enable;
+	int proximity_state; /* 0:far 1:near */
+	int screen_state; /* 1:on 0:off */
 
+	spinlock_t irq_lock;
+	bool irq_enabled;
 	unsigned int irq_cnt;
 };
 
@@ -284,6 +290,24 @@ static int set_clks(struct fpc1020_data *fpc1020, bool enable)
 	return 0;
 }
 
+static void set_fpc_irq(struct fpc1020_data *fpc1020, bool enable)
+{
+	bool irq_enabled;
+
+	spin_lock(&fpc1020->irq_lock);
+	irq_enabled = fpc1020->irq_enabled;
+	fpc1020->irq_enabled = enable;
+	spin_unlock(&fpc1020->irq_lock);
+
+	if (enable == irq_enabled)
+		return;
+
+	if (enable)
+		enable_irq(gpio_to_irq(fpc1020->irq_gpio));
+	else
+		disable_irq(gpio_to_irq(fpc1020->irq_gpio));
+}
+
 static ssize_t dev_enable_set(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
@@ -369,15 +393,45 @@ static ssize_t key_enable_set(struct device *dev,
 	struct  fpc1020_data *fpc1020 = dev_get_drvdata(dev);
 
 	int rc, val;
+        rc = kstrtoint(buf, 10, &val);
+        if (rc)
+                return -EINVAL;
+
+        fpc1020->key_enable = val;
+
+        return count;
+}
+static DEVICE_ATTR(key_enable, S_IWUSR | S_IRUGO, key_enable_get, key_enable_set);
+
+static ssize_t screen_state_get(struct device* device,
+			     struct device_attribute* attribute,
+			     char* buffer)
+{
+	struct fpc1020_data* fpc1020 = dev_get_drvdata(device);
+	return scnprintf(buffer, PAGE_SIZE, "%i\n", fpc1020->screen_state);
+}
+
+static DEVICE_ATTR(screen_state, S_IRUSR , screen_state_get, NULL);
+
+static ssize_t proximity_state_set(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct fpc1020_data *fpc1020 = dev_get_drvdata(dev);
+	int rc, val;
+
 	rc = kstrtoint(buf, 10, &val);
 	if (rc)
 		return -EINVAL;
 
-	fpc1020->key_enable = val;
+	fpc1020->proximity_state = !!val;
+
+	if (!fpc1020->screen_state)
+		set_fpc_irq(fpc1020, !fpc1020->proximity_state);
 
 	return count;
 }
-static DEVICE_ATTR(key_enable, S_IWUSR | S_IRUGO, key_enable_get, key_enable_set);
+
+static DEVICE_ATTR(proximity_state, S_IWUSR, NULL, proximity_state_set);
 
 static struct attribute *attributes[] = {
 	&dev_attr_dev_enable.attr,
@@ -386,6 +440,8 @@ static struct attribute *attributes[] = {
 	&dev_attr_irq_cnt.attr,
 	&dev_attr_nav.attr,
 	&dev_attr_key_enable.attr,
+	&dev_attr_screen_state.attr,
+	&dev_attr_proximity_state.attr,
 	NULL
 };
 
