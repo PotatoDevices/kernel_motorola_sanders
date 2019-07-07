@@ -1030,7 +1030,7 @@
 			status = "okay";
 			qcom,led_mpp_2 {
 				label = "mpp";
-				linux,name = "charging";
+				linux,name = "white";
 				linux,default-trigger = "none";
 				qcom,default-state = "off";
 				qcom,max-current = <40>;
