@@ -2146,6 +2146,7 @@ static int mdss_fb_blank_blank(struct msm_fb_data_type *mfd,
 {
 	int ret = 0;
 	int cur_power_state, current_bl;
+	int tp_fw_upgrade_flag = 0;
 
 	if (!mfd)
 		return -EINVAL;
