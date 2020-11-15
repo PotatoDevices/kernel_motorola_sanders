@@ -142,8 +142,6 @@ struct fpc1020_data {
 
 	struct input_dev *input;
 
-	struct mutex lock;
-
 	int irq_gpio;
 	int rst_gpio;
 	int irq_num;
