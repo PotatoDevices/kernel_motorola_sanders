@@ -536,6 +536,7 @@ enum ipa_rm_resource_name {
  * @IPA_HW_v3_5: IPA hardware version 3.5
  * @IPA_HW_v3_5_1: IPA hardware version 3.5.1
  * @IPA_HW_v4_0: IPA hardware version 4.0
+ * @IPA_HW_v4_5: IPA hardware version 4.5
  */
 enum ipa_hw_type {
 	IPA_HW_None = 0,
@@ -551,11 +552,12 @@ enum ipa_hw_type {
 	IPA_HW_v3_5 = 12,
 	IPA_HW_v3_5_1 = 13,
 	IPA_HW_v4_0 = 14,
+	IPA_HW_v4_5 = 15,
 };
 #define IPA_HW_MAX (IPA_HW_v4_0 + 1)
 
 #define IPA_HW_v4_0 IPA_HW_v4_0
-
+#define IPA_HW_v4_5 IPA_HW_v4_5
 /**
  * struct ipa_rule_attrib - attributes of a routing/filtering
  * rule, all in LE
